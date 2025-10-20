@@ -3,16 +3,16 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Coordinate Plane Challenge — Minimizable Results</title>
+<title>Coordinate Plane — Hidden Results Panel (show on demand)</title>
 <style>
   :root{
     --bg: #ffffff;
     --fg: #000000;
-    --muted: #333333;
+    --muted: #444444;
     --panel: #f7f7f7;
     --accent: #000000;
     --radius: 10px;
-    --panel-width: 340px;
+    --panel-width: 360px;
   }
   html,body{height:100%;margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial;background:var(--bg);color:var(--fg)}
   .topbar{height:86px;display:flex;align-items:center;gap:18px;padding:0 22px;border-bottom:1px solid rgba(0,0,0,0.08);box-sizing:border-box}
@@ -23,7 +23,7 @@
   .main{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:18px;gap:14px;height:calc(100vh - 172px);box-sizing:border-box}
   .planeWrap{display:flex;align-items:center;justify-content:center;width:100%;flex:1;box-sizing:border-box}
   canvas#plane{background:linear-gradient(180deg,#ffffff,#fafafa);box-shadow:0 8px 20px rgba(0,0,0,0.06);border:1px solid rgba(0,0,0,0.06);border-radius:8px;display:block}
-  /* Side panel: fixed and minimizable */
+  /* Hidden side panel (slides in) */
   .sidePanel{
     position:fixed;
     right:18px;
@@ -35,6 +35,370 @@
     padding:12px;
     border:1px solid rgba(0,0,0,0.06);
     box-shadow:0 10px 30px rgba(0,0,0,0.04);
+    box-sizing:border-box;
+    transform: translateX(calc(var(--panel-width) + 48px));
+    transition: transform 260ms ease, opacity 260ms ease;
+    opacity:0;
+    z-index:100;
+    pointer-events:none;
+  }
+  .sidePanel.visible{
+    transform: translateX(0);
+    opacity:1;
+    pointer-events:auto;
+  }
+  .sidePanel h3{margin:0 0 8px 0;font-size:16px}
+  label{display:block;font-size:13px;color:var(--muted);margin-top:8px}
+  input[type="number"], input[type="text"]{width:100%;padding:8px;border-radius:6px;border:1px solid rgba(0,0,0,0.08);box-sizing:border-box;font-size:14px}
+  .stats{font-family:ui-monospace,monospace;font-size:14px;white-space:pre-wrap;color:var(--muted);margin-top:10px}
+  .small{font-size:13px;color:var(--muted)}
+  .topControls{display:flex;align-items:center;gap:10px}
+  .panelClose{display:block;margin-left:auto;background:transparent;border:0;font-weight:800;cursor:pointer;color:var(--muted)}
+  footer{height:56px;display:flex;align-items:center;justify-content:space-between;padding:0 18px;border-top:1px solid rgba(0,0,0,0.04)}
+  @media (max-width:1100px){ .sidePanel{right:10px;top:86px;width:calc(100% - 20px)} }
+</style>
+</head>
+<body>
+  <div class="topbar" role="banner">
+    <div class="brand">Coordinate Plane Challenge</div>
+
+    <div class="controls" role="toolbar" aria-label="randomiser controls">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div style="text-align:center">
+          <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Random number</div>
+          <div id="randDisplay" style="font-weight:900;font-size:20px">—</div>
+        </div>
+        <button id="randBtn" class="primary" title="Pick a number from 1 to 25">Pick 1–25</button>
+        <button id="usePairBtn" title="Load the preset pair matching the picked number">Use Pair</button>
+        <button id="clearRand" title="Clear picked number">Clear</button>
+      </div>
+
+      <!-- Show Results toggle (panel hidden by default) -->
+      <div style="width:18px"></div>
+      <button id="showResultsBtn" title="Show results panel">Show Results</button>
+    </div>
+  </div>
+
+  <div class="main" role="main">
+    <div class="planeWrap" id="planeWrap" aria-hidden="false">
+      <canvas id="plane" role="img" aria-label="Interactive coordinate plane"></canvas>
+    </div>
+
+    <div class="small" style="text-align:center;max-width:900px;color:var(--muted)">
+      Click on the plane to place Point A and Point B. Use the "Show Results" button to view or hide coordinates and the distance calculation.
+    </div>
+  </div>
+
+  <aside id="sidePanel" class="sidePanel" aria-label="Points and results panel">
+    <div style="display:flex;align-items:center;gap:10px">
+      <h3>Points & Results</h3>
+      <button class="panelClose" id="closePanelBtn" title="Close results panel">✕</button>
+    </div>
+
+    <label>Point A (x, y)</label>
+    <input id="ax" type="number" step="0.01" placeholder="x_A (click plane)" />
+    <input id="ay" type="number" step="0.01" placeholder="y_A (click plane)" style="margin-top:6px"/>
+
+    <label style="margin-top:8px">Point B (x, y)</label>
+    <input id="bx" type="number" step="0.01" placeholder="x_B (click plane)" />
+    <input id="by" type="number" step="0.01" placeholder="y_B (click plane)" style="margin-top:6px"/>
+
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <button id="setCoords">Set coords</button>
+      <button id="snapBtn">Snap to integer</button>
+      <button id="clearBtn">Clear</button>
+    </div>
+
+    <div class="stats" id="stats" aria-live="polite" style="margin-top:10px">
+A = (—, —)
+B = (—, —)
+change in x = —
+change in y = —
+distance = —
+    </div>
+
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <button id="copyBtn">Copy Answer</button>
+      <button id="exportPNG">Export PNG</button>
+    </div>
+
+    <div style="margin-top:12px" class="small">
+      Preset pairs for numbers 1–25. Pick a number, then press "Use Pair" to load that pair. You can still move points by clicking after loading.
+    </div>
+  </aside>
+
+  <footer>
+    <div class="small">Coordinates to 2 decimals, distance to 3 decimals</div>
+    <div class="small">Tip: click the plane to place points, or open results to enter numbers manually</div>
+  </footer>
+
+<script>
+(function(){
+  // Elements
+  const canvas = document.getElementById('plane');
+  const sidePanel = document.getElementById('sidePanel');
+  const showResultsBtn = document.getElementById('showResultsBtn');
+  const closePanelBtn = document.getElementById('closePanelBtn');
+
+  const randBtn = document.getElementById('randBtn');
+  const randDisplay = document.getElementById('randDisplay');
+  const usePairBtn = document.getElementById('usePairBtn');
+  const clearRandBtn = document.getElementById('clearRand');
+
+  const axIn = document.getElementById('ax');
+  const ayIn = document.getElementById('ay');
+  const bxIn = document.getElementById('bx');
+  const byIn = document.getElementById('by');
+  const setCoordsBtn = document.getElementById('setCoords');
+  const snapBtn = document.getElementById('snapBtn');
+  const clearBtn = document.getElementById('clearBtn');
+  const statsEl = document.getElementById('stats');
+  const copyBtn = document.getElementById('copyBtn');
+  const exportBtn = document.getElementById('exportPNG');
+
+  // Preset pairs 1..25
+  const presets = [
+    [{x:-8,y:-3},{x:4,y:2}], [{x:-7,y:5},{x:6,y:5}], [{x:0,y:0},{x:7,y:-4}],
+    [{x:-3,y:2},{x:-3,y:-6}], [{x:2,y:3},{x:5,y:11}], [{x:-6,y:-1},{x:-1,y:4}],
+    [{x:3,y:-2},{x:-4,y:-2}], [{x:-9,y:7},{x:-2,y:0}], [{x:1,y:1},{x:4,y:5}],
+    [{x:6,y:-3},{x:6,y:2}], [{x:-5,y:-4},{x:-1,y:-1}], [{x:0,y:5},{x:5,y:5}],
+    [{x:-2,y:3},{x:3,y:-2}], [{x:8,y:4},{x:2,y:-1}], [{x:-1,y:-1},{x:2,y:3}],
+    [{x:4,y:6},{x:-2,y:0}], [{x:-7,y:2},{x:-3,y:8}], [{x:9,y:-2},{x:3,y:4}],
+    [{x:-4,y:5},{x:1,y:5}], [{x:2,y:-5},{x:7,y:-5}], [{x:-8,y:-8},{x:-3,y:-3}],
+    [{x:0,y:-6},{x:6,y:0}], [{x:5,y:5},{x:9,y:1}], [{x:-6,y:4},{x:-2,y:-2}],
+    [{x:1,y:-3},{x:4,y:2}]
+  ];
+
+  // Canvas context and state
+  const ctx = canvas.getContext('2d');
+  const unitPx = 40; // pixels per unit (visual)
+  let A = null, B = null;
+  let pickedNumber = null;
+
+  // sizing
+  function origin(){ return { x: canvas.width/2, y: canvas.height/2 }; }
+
+  function sizeCanvas(){
+    const vw = window.innerWidth, vh = window.innerHeight;
+    // side spacing when panel visible vs hidden — panel is off-screen when hidden
+    const sideGap = 56;
+    const availableW = Math.max(480, vw - sideGap - 40);
+    const availableH = Math.max(360, vh - 220);
+    const targetW = Math.min(availableW, 1400);
+    const targetH = Math.min(availableH, 1000);
+    canvas.width = Math.floor(targetW);
+    canvas.height = Math.floor(targetH);
+    canvas.style.width = canvas.width + 'px';
+    canvas.style.height = canvas.height + 'px';
+  }
+
+  // world <-> screen
+  function worldToScreen(pt){
+    const o = origin();
+    return { x: o.x + pt.x * unitPx, y: o.y - pt.y * unitPx };
+  }
+  function screenToWorld(px, py){
+    const o = origin();
+    const x = (px - o.x) / unitPx;
+    const y = (o.y - py) / unitPx;
+    return { x: x, y: y };
+  }
+
+  // draw
+  function draw(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    // background
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0,0,canvas.width,canvas.height);
+
+    // grid
+    ctx.strokeStyle = 'rgba(0,0,0,0.06)'; ctx.lineWidth = 1;
+    const o = origin();
+    const leftUnits = Math.ceil(o.x / unitPx);
+    const rightUnits = Math.ceil((canvas.width - o.x) / unitPx);
+    const topUnits = Math.ceil(o.y / unitPx);
+    const bottomUnits = Math.ceil((canvas.height - o.y) / unitPx);
+
+    for(let i=-leftUnits;i<=rightUnits;i++){
+      const x = o.x + i*unitPx;
+      ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,canvas.height); ctx.stroke();
+    }
+    for(let j=-topUnits;j<=bottomUnits;j++){
+      const y = o.y + j*unitPx;
+      ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(canvas.width,y); ctx.stroke();
+    }
+
+    // axes
+    ctx.strokeStyle = '#000'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(0,o.y); ctx.lineTo(canvas.width,o.y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(o.x,0); ctx.lineTo(o.x,canvas.height); ctx.stroke();
+
+    // labels
+    ctx.fillStyle = '#000'; ctx.font = '12px system-ui';
+    for(let i=-leftUnits;i<=rightUnits;i++){ const x = o.x + i*unitPx; ctx.fillText(String(i), x+4, o.y+14); }
+    for(let j=-topUnits;j<=bottomUnits;j++){ const y = o.y + j*unitPx; if(j!==0) ctx.fillText(String(-j), o.x+6, y-6); }
+
+    // draw points and line
+    if(A){ const s = worldToScreen(A); ctx.beginPath(); ctx.fillStyle = '#000'; ctx.arc(s.x,s.y,6,0,Math.PI*2); ctx.fill(); ctx.fillStyle='#000'; ctx.font='bold 13px system-ui'; ctx.fillText('A', s.x+10, s.y-10); }
+    if(B){ const s = worldToScreen(B); ctx.beginPath(); ctx.fillStyle = '#000'; ctx.arc(s.x,s.y,6,0,Math.PI*2); ctx.fill(); ctx.fillStyle='#000'; ctx.font='bold 13px system-ui'; ctx.fillText('B', s.x+10, s.y-10); }
+    if(A && B){ const sA = worldToScreen(A), sB = worldToScreen(B); ctx.beginPath(); ctx.strokeStyle='#000'; ctx.lineWidth=2; ctx.moveTo(sA.x,sA.y); ctx.lineTo(sB.x,sB.y); ctx.stroke(); }
+  }
+
+  // stats
+  function formatNum(v, d){ return Number.parseFloat(v).toFixed(d); }
+  function updateStats(){
+    if(A){ axIn.value = formatNum(A.x,2); ayIn.value = formatNum(A.y,2); } else { axIn.value=''; ayIn.value=''; }
+    if(B){ bxIn.value = formatNum(B.x,2); byIn.value = formatNum(B.y,2); } else { bxIn.value=''; byIn.value=''; }
+
+    if(A && B){
+      const dx = B.x - A.x; const dy = B.y - A.y; const dist = Math.hypot(dx,dy);
+      const formula = 'distance = sqrt((x2 - x1)^2 + (y2 - y1)^2)\\n' +
+                      '       = sqrt((' + formatNum(B.x,2) + ' - ' + formatNum(A.x,2) + ')^2 + (' + formatNum(B.y,2) + ' - ' + formatNum(A.y,2) + ')^2)\\n' +
+                      '       = sqrt((' + formatNum(dx,2) + ')^2 + (' + formatNum(dy,2) + ')^2)\\n' +
+                      '       = ' + formatNum(dist,3);
+      statsEl.textContent = 'A = (' + formatNum(A.x,2) + ', ' + formatNum(A.y,2) + ')\\n' +
+                            'B = (' + formatNum(B.x,2) + ', ' + formatNum(B.y,2) + ')\\n' +
+                            'change in x = ' + formatNum(dx,3) + '\\n' +
+                            'change in y = ' + formatNum(dy,3) + '\\n' +
+                            formula;
+    } else {
+      statsEl.textContent = 'A = (' + (A ? formatNum(A.x,2) : '—') + ', ' + (A ? formatNum(A.y,2) : '—') + ')\\n' +
+                            'B = (' + (B ? formatNum(B.x,2) : '—') + ', ' + (B ? formatNum(B.y,2) : '—') + ')\\n' +
+                            'change in x = —\\nchange in y = —\\ndistance = —';
+    }
+  }
+
+  // click behavior
+  canvas.addEventListener('click', (ev) => {
+    const rect = canvas.getBoundingClientRect();
+    const px = ev.clientX - rect.left, py = ev.clientY - rect.top;
+    const w = screenToWorld(px, py);
+    if(!A) A = { x: w.x, y: w.y };
+    else if(!B) B = { x: w.x, y: w.y };
+    else {
+      const da = Math.hypot(w.x - A.x, w.y - A.y);
+      const db = Math.hypot(w.x - B.x, w.y - B.y);
+      if(da < db) A = { x: w.x, y: w.y }; else B = { x: w.x, y: w.y };
+    }
+    draw(); updateStats();
+  });
+
+  // set coords button
+  setCoordsBtn.addEventListener('click', ()=> {
+    const ax = parseFloat(axIn.value), ay = parseFloat(ayIn.value);
+    const bx = parseFloat(bxIn.value), by = parseFloat(byIn.value);
+    if(!Number.isNaN(ax) && !Number.isNaN(ay)) A = { x: ax, y: ay };
+    if(!Number.isNaN(bx) && !Number.isNaN(by)) B = { x: bx, y: by };
+    draw(); updateStats();
+  });
+
+  // snap
+  snapBtn.addEventListener('click', ()=> {
+    if(A){ A.x = Math.round(A.x); A.y = Math.round(A.y); }
+    if(B){ B.x = Math.round(B.x); B.y = Math.round(B.y); }
+    draw(); updateStats();
+  });
+
+  // clear
+  clearBtn.addEventListener('click', ()=> { A = null; B = null; draw(); updateStats(); });
+
+  // copy answer
+  copyBtn.addEventListener('click', async ()=> {
+    if(!(A && B)){ alert('Place both points A and B first.'); return; }
+    const dx = B.x - A.x, dy = B.y - A.y, dist = Math.hypot(dx,dy);
+    const text = 'A = (' + formatNum(A.x,2) + ', ' + formatNum(A.y,2) + ')\\n' +
+                 'B = (' + formatNum(B.x,2) + ', ' + formatNum(B.y,2) + ')\\n' +
+                 'change in x = ' + formatNum(dx,3) + '\\n' +
+                 'change in y = ' + formatNum(dy,3) + '\\n' +
+                 'distance = ' + formatNum(dist,3);
+    try { await navigator.clipboard.writeText(text); alert('Answer copied to clipboard.'); }
+    catch(e){ prompt('Copy failed — here is the answer (select then copy):', text); }
+  });
+
+  // export PNG
+  exportBtn.addEventListener('click', ()=> {
+    const url = canvas.toDataURL('image/png');
+    const a = document.createElement('a'); a.href = url; a.download = 'coordinate_plane.png'; a.click();
+  });
+
+  // randomiser
+  randBtn.addEventListener('click', ()=> {
+    randDisplay.textContent = '...';
+    setTimeout(()=> {
+      const n = Math.floor(Math.random()*25) + 1;
+      pickedNumber = n;
+      randDisplay.textContent = String(n);
+    }, 400);
+  });
+  usePairBtn.addEventListener('click', ()=> {
+    if(pickedNumber && pickedNumber >=1 && pickedNumber <= presets.length){
+      const pair = presets[pickedNumber - 1];
+      A = { x: pair[0].x, y: pair[0].y };
+      B = { x: pair[1].x, y: pair[1].y };
+      draw(); updateStats();
+      // ensure panel visible so teacher can see values
+      openPanel();
+    } else {
+      alert('Pick a number first (1–25).');
+    }
+  });
+  clearRandBtn.addEventListener('click', ()=> { pickedNumber = null; randDisplay.textContent = '—'; });
+
+  // show/hide panel functions
+  function openPanel(){
+    sidePanel.classList.add('visible');
+    showResultsBtn.textContent = 'Hide Results';
+    showResultsBtn.setAttribute('aria-expanded','true');
+  }
+  function closePanel(){
+    sidePanel.classList.remove('visible');
+    showResultsBtn.textContent = 'Show Results';
+    showResultsBtn.setAttribute('aria-expanded','false');
+  }
+
+  showResultsBtn.addEventListener('click', ()=> {
+    if(sidePanel.classList.contains('visible')) closePanel(); else openPanel();
+  });
+  closePanelBtn.addEventListener('click', closePanel);
+
+  // sizing and init
+  function init(){
+    sizeCanvas();
+    draw();
+    updateStats();
+    // panel hidden by default
+    closePanel();
+  }
+  function sizeCanvas(){
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const sideGap = 56;
+    const availableW = Math.max(480, vw - sideGap - 40);
+    const availableH = Math.max(360, vh - 220);
+    const targetW = Math.min(availableW, 1400);
+    const targetH = Math.min(availableH, 1000);
+    canvas.width = Math.floor(targetW);
+    canvas.height = Math.floor(targetH);
+    canvas.style.width = canvas.width + 'px';
+    canvas.style.height = canvas.height + 'px';
+  }
+  function screenToWorld(px, py){
+    const o = origin();
+    return { x: (px - o.x) / unitPx, y: (o.y - py) / unitPx };
+  }
+
+  window.addEventListener('resize', ()=> { sizeCanvas(); draw(); updateStats(); });
+
+  // keyboard shortcuts
+  window.addEventListener('keydown', (e) => {
+    if(e.key === 'r') randBtn.click();
+    if(e.key === 's') { if(sidePanel.classList.contains('visible')) closePanel(); else openPanel(); }
+  });
+
+  init();
+
+})();
+</script>
+</body>
+</html>    box-shadow:0 10px 30px rgba(0,0,0,0.04);
     box-sizing:border-box;
     transition: transform 260ms ease, opacity 260ms ease;
     z-index:100;
